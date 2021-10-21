@@ -1,0 +1,61 @@
+cum se calculeaza (automat) gruparea intr-o masura?
+
+1. Se inmulteste fractia masurii cu fractia `1/2`. Daca numitorul fractiei rezultante
+   este mai mic sau egal cu numitorul fractiei masurii, atunci masura "are jumatate",
+   deci timpii se pot grupa, grosso modo, in doua grupuri, incluzand fiecare, 
+   cate o "jumatate" de masura.
+
+   Exemple: 
+   ->  4/ 4 * 1/2 =  1/ 2;  (2) <= (4), deci masura "are jumatate"
+   ->  4/ 8 * 1/2 =  1/ 4;  (4) <= (8), deci masura "are jumatate"
+   ->  6/ 8 * 1/2 =  3/ 8;  (8) <= (8), deci masura "are jumatate"
+   -> 12/ 8 * 1/2 =  3/ 4;  (4) <= (8), deci masura "are jumatate"
+   ->  3/ 4 * 1/2 =  3/ 8;  (8) >  (4), deci masura "NU are jumatate"
+   ->  9/ 8 * 1/2 =  9/16; (16) >  (8), deci masura "NU are jumatate"
+   -> 11/16 * 1/2 = 11/32; (32) > (16), deci masura "NU are jumatate"
+
+1.1 Jonctiunea intre grupuri are loc la fractia obtinuta in urma inmultirii cu `1/2`.
+Ultimul timp din grupul anterior este (`fractia obtinuta` - `1/n`), unde `n` este numitorul
+fractiei masurii respective. Primul timp din grupul urmator este (`fractia obtinuta` + `1/n`).
+
+	Exemple:
+	-> pentru masura `4/4`:
+		- Punctul de jonctiune este 4/4 * 1/2 = 1/2;
+		- Fractia care reprezinta "un timp" este 1/4;
+		- Ultimul timp din grupul anterior este 1/2 - 1/4 = 1/4;
+		- Primul timp din grupul urmator este 1/2 + 1/4 = 3/4;
+
+	-> pentru masura `6/8`:
+		- Punctul de jonctiune este 6/8 * 1/2 =  3/8;
+		- Fractia care reprezinta "un timp" este 1/8;
+		- Ultimul timp din grupul anterior este 3/8 - 1/8 = 1/4 (sau 2/8);
+		- Primul timp din grupul urmator este 3/8 + 1/8 = 1/2 (sau 4/8).
+
+2. Daca masura nu a "avut jumatate", este posibil sa "aiba treimi" (doua jonctiuni).
+   Se inmulteste fractia masurii cu fractia `1/3`. Daca numitorul fractiei rezultante
+   este mai mic sau egal cu numitorul fractiei masurii, atunci masura "are treimi"
+   (doua la numar), deci timpii se pot grupa, grosso modo, in trei grupuri, incluzand
+   fiecare cate o "treime" de masura.
+
+   Exemple:
+   ->  3/ 4 * 1/3 =  1/ 4;  (4) <= (4), deci masura "are treimi";
+   ->  9/ 8 * 1/3 =  3/ 8;  (8) <= (8), deci masura "are treimi";
+   -> 11/16 * 1/3 = 11/48; (48) > (16), deci masura "nu are treimi".
+
+2.1 Jonctiunea intre grupurile 1 si 2 are loc la fractia obtinuta in urma inmultirii cu `1/3`;
+Jonctiunea intre grupurile 2 si 3 are loc la fractia obtinuta in urma inmultirii su `2/3`.
+Fractia timpului de dinainte de jonctiune se obtine scazand `1/n` din rezultatul inmultirii, iar
+fractia timpului de dupa jonctiune se obtine adunand `1/n` la rezultatul inmultirii, unde `n`
+este numitorul fractiei masurii respective.
+
+	Exemple:
+	-> pentru masura `3/4`:
+		- punctul prim de jonctiune este 3/4 * 1/3 = 1/4;
+		- punctul secund de jonctiune este 3/4 * 2/3 = 1/2 (sau 2/4);
+
+3. Daca masura nu a "avut jumatate" si nici nu a "avut treimi", jonctiunile vor fi plasate la 
+nivelul fiecarui timp, fiind determinate de rezultatul inmultirilor succesive ale fractiei
+`1/n` cu `q`, unde `n` este numitorul fractiei masurii respective, iar `q` este un numar a.i.
+1 <= q <= `M`, unde `M` este numaratorul fractiei respective.
+
+

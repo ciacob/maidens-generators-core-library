@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" 
+		 width="190" 
+		 height="60">
+	
+	<fx:Script>
+		<![CDATA[
+			
+			// -----------------
+			// Private constants
+			// -----------------
+			private static const AXIS_THICKNESS : uint = 1;
+			private static const LINE_THICKNESS : uint = 2;
+			private static const LINE_ALPHA : uint = 1;
+
+			
+			// -----------------
+			// Private variables
+			// -----------------
+			
+			// The points to draw the chart line from
+			private var _points : Array = [];
+			
+			// The color to use for the chart line
+			private var _color : uint = 0x000000;
+			
+			// The color for the chart axes
+			private var _axesColor : uint = 0x000000;
+			
+			
+			// --------------
+			// Public methods
+			// --------------
+			
+			/**
+			 * The points to draw the chart line from, as an Array of unsigned integers,
+			 * taking values from `1` to `100` inclusive. The item's index represents the
+			 * `x` and theitem's value represents the the `y`. The chart values grow from
+			 * left to right and bottom to top.
+			 * 
+			 */
+			public function set points (value : Array) : void {
+				_points = value;
+				invalidateDisplayList();
+			}
+			public function get points () : Array {
+				return _points;
+			}
+			
+			/**
+			 * The color to use for drawing the chart line. Defaults to black.
+			 */
+			public function set color (value : uint) : void {
+				if (_color != value) {
+					_color = value;
+					invalidateDisplayList();
+				}
+			}
+			public function get color () : uint {
+				return _color;
+			}
+			
+			/**
+			 * The color to use for drawing the chart axes. Defaults to black.
+			 * NOTE: axes are always drawn with a 0.5 alpha.
+			 */
+			public function set axesColor (value : uint) : void {
+				if (_axesColor != value) {
+					_axesColor = value;
+					invalidateDisplayList();
+				}
+			}
+			public function get axesColor () : uint {
+				return _axesColor;
+			}
+			
+			
+			/**
+			 * @see spark.components.Group.updateDisplayList
+			 */
+			override protected function updateDisplayList (w : Number, h: Number) : void {
+				super.updateDisplayList (w, h);
+				var g : Graphics = canvas.graphics;
+				g.clear();
+				if (points && points.length > 0) {
+					var drawingInitiated : Boolean = false;
+					var x : Number = 0;
+					var y : Number = 0;
+					for (var i:int = 0; i < points.length; i++) {
+						if (points[i] !== undefined) {
+							x = (((i - 1) / 100) * (w - AXIS_THICKNESS * 2)) + AXIS_THICKNESS;
+							y = (h - (((points[i] as uint) / 100) * h));
+							if (!drawingInitiated) {
+								
+								// Draw border
+								g.lineStyle (AXIS_THICKNESS, axesColor, LINE_ALPHA * 0.5, true);
+								g.drawRect (0, 0, w, h);
+								
+								// Draw axes
+								g.lineStyle (AXIS_THICKNESS, axesColor, LINE_ALPHA * 0.5, true);
+								g.moveTo (0, h * 0.5);
+								g.lineTo (w, h * 0.5);
+								g.moveTo (w * 0.25, 0);
+								g.lineTo (w * 0.25, h);
+								g.moveTo (w * 0.5, 0);
+								g.lineTo (w * 0.5, h);
+								g.moveTo (w * 0.75, 0);
+								g.lineTo (w * 0.75, h);
+								
+								// Initiate line drawing
+								g.lineStyle (LINE_THICKNESS, color, LINE_ALPHA, true);
+								g.moveTo (x, y);
+								drawingInitiated = true;
+							} else {
+								g.lineTo (x, y);
+							}
+						}
+					}
+					if (drawingInitiated) {
+						if (x != w) {
+							g.lineTo (w, y);
+						}
+						g.lineStyle();
+					}
+				}
+			}
+		]]>
+	</fx:Script>
+	
+	<s:Graphic id="canvas" />
+	
+</s:Group>
