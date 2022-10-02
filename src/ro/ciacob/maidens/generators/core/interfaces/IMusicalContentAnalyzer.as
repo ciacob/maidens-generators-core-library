@@ -22,10 +22,10 @@ package ro.ciacob.maidens.generators.core.interfaces {
 		function get uid () : String;
 
 		/**
-		 * An intrinsic weight, or importance, of this Analyzer. Ideally, both the Trait
-		 * and Source operating this Analyzer will take into account this weight to make
-		 * the Analyzer's influence more or less salient. Weight must be a number between
-		 * 0 and 1, both ends included.
+		 * An intrinsic weight, or importance, of this Analyzer. Ideally, all parties
+		 * operating this Analyzer will take into account this weight to make the Analyzer's
+		 * influence more or less salient. Weight must be a number between 0 and 1, both
+		 * ends included.
 		 */
 		function get weight () : Number;
 

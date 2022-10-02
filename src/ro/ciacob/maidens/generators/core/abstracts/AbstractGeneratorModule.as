@@ -312,7 +312,7 @@ package ro.ciacob.maidens.generators.core.abstracts {
 					parameter.uid = '1ce62acd-4fb6-4d3d-94d0-862a776d5997';
 					parameter.color = Colors.CHROME_COLOR_DARKER;
 					parameter.payload = 45;
-					parameter.minValue = 30;
+					parameter.minValue = 1;
 					parameter.maxValue = 100;
 					parameter.description = 'Controls a preliminary validation device, which only accepts those structures whose calculated fit score is within certain margin to the expected value. The smaller the value, the more CPU time is invested to closely match every parameter value.';
 					// parameter.documentationUrl = 'error_margin_parameter';
