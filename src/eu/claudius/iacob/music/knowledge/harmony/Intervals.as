@@ -1,5 +1,6 @@
 package eu.claudius.iacob.music.knowledge.harmony {
 import ro.ciacob.maidens.generators.constants.pitch.IntervalsSize;
+import ro.ciacob.maidens.generators.core.helpers.IntervalRegistryEntry;
 
 /**
  * Groups musical knowledge related to harmonic intervals.
@@ -81,7 +82,7 @@ public final class Intervals {
      *
      * @see Array.sort
      */
-    public static function orderByHindemith2ndSeries(intervalA:Object, intervalB:Object):int {
+    public static function orderByHindemith2ndSeries(intervalA:IntervalRegistryEntry, intervalB:IntervalRegistryEntry):int {
         var significanceDelta:int = 0;
         if (intervalA.size != intervalB.size) {
             significanceDelta = (_hindemith2ndSeries.indexOf(intervalA.size) - _hindemith2ndSeries.indexOf(intervalB.size));

@@ -2,6 +2,7 @@
 <mx:VBox xmlns:fx="http://ns.adobe.com/mxml/2009"
          xmlns:s="library://ns.adobe.com/flex/spark"
          xmlns:mx="library://ns.adobe.com/flex/mx"
+         xmlns:components="spark.components.*"
          width="100%"
          horizontalScrollPolicy="off"
          verticalScrollPolicy="off"
@@ -14,6 +15,7 @@
 
     <fx:Script>
 		<![CDATA[
+        import eu.claudius.iacob.maidens.Colors;
         import eu.claudius.iacob.maidens.Sizes;
         import eu.claudius.iacob.maidens.skins.InfoButtonSkin;
 
@@ -170,6 +172,10 @@
         // Controls visibility of the UI group containing the slider and envelope proxy.
         [Bindable]
         private var _showRangeControls:Boolean;
+
+        // Controls visibility of the Yes/No UI control(aka "ToggleSwitch").
+        [Bindable]
+        private var _showSwitch:Boolean;
 
         // Controls the low limit of the slider range.
         [Bindable]
@@ -512,6 +518,16 @@
         }
 
         /**
+         * Executed when the Yes/No UI controll changes values as a result of user interaction.
+         * Sets `_singleIntegerValue` and dispatches an Event.CHANGE event.
+         */
+        private function _onYesNoChange ():void {
+            _singleIntegerValue = yesNoControl.selected? 1 : 0;
+            _updateLabelInfo();
+            dispatchEvent(new Event(Event.CHANGE));
+        }
+
+        /**
          * Executed when the stepper UI controll changes value as a result of user interaction.
          */
         private function _onStepperChanged(...etc):void {
@@ -593,14 +609,15 @@
 
             var isArray:Boolean = (type == ARR);
             var isInt:Boolean = (type == INT);
+            var isBoolean : Boolean = (type == INT && minValue == 0 && maxValue == 1);
             var hasMinValue:Boolean = isInt && (minValue is int);
             var hasMaxValue:Boolean = isInt && (maxValue is int);
-            var showValue:Boolean = (isInt || (isArray && !_tweeningEngaged));
+            var showValue:Boolean = (isBoolean || isInt || (isArray && !_tweeningEngaged));
             var showPercent:Boolean = (showValue && isArray);
-            var showRange:Boolean = (hasMinValue && hasMaxValue);
+            var showRange:Boolean = (!isBoolean && hasMinValue && hasMaxValue);
             var tokens:Array = [];
             if (showValue) {
-                tokens.push(_singleIntegerValue);
+                tokens.push(isBoolean? _singleIntegerValue === 1 : _singleIntegerValue);
             }
             if (showPercent) {
                 tokens.push(CommonStrings.PERCENT);
@@ -621,7 +638,8 @@
             var isInt:Boolean = (type == INT);
             var hasMinValue:Boolean = isInt && (minValue is int);
             var hasMaxValue:Boolean = isInt && (maxValue is int);
-            _showRangeControls = (isArray || (isInt && hasMinValue && hasMaxValue));
+            _showSwitch = (isInt && minValue == 0 && maxValue == 1);
+            _showRangeControls = (isArray || (isInt && hasMinValue && hasMaxValue && !_showSwitch));
             _sliderMinValue = (isArray ? MIN_VALUE : minValue as int);
             _sliderMaxValue = (isArray ? MAX_VALUE : maxValue as int);
             _showNumericControls = (isInt && (!hasMinValue || !hasMaxValue));
@@ -685,7 +703,7 @@
              horizontalScrollPolicy="off"
              verticalScrollPolicy="off"
              height="{(description &amp;&amp; showDescriptionButton.selected)? NaN : 0}"
-             verticalGap="0">
+             verticalGap="0" paddingTop="2" paddingBottom="2">
 
         <!-- Description -->
         <mx:Text text="{description}" width="100%"
@@ -706,7 +724,7 @@
                        includeInLayout="{documentationUrl != null}"/>
     </mx:VBox>
 
-    <!-- Third row: slider and buttons -->
+    <!-- Third row: various controls -->
     <mx:HBox width="100%"
              horizontalScrollPolicy="off"
              verticalScrollPolicy="off"
@@ -715,6 +733,16 @@
              horizontalGap="{SPACE * 2}"
              paddingTop="{Sizes.SMALLEST_GAP}"
              paddingBottom="0">
+
+        <!-- Toggle -->
+        <components:ToggleSwitch id="yesNoControl"
+                                 visible="{_showSwitch}"
+                                 includeInLayout="{_showSwitch}"
+                                 skinClass="ro.ciacob.maidens.generators.core.ui.YesNoSkin"
+                                 accentColor="{Colors.PRIMARY_COLOR}"
+                                 chromeColor="{Colors.CHROME_COLOR}"
+                                 selected="{_singleIntegerValue == 1}"
+                                 change="_onYesNoChange()" />
 
         <!-- Slider/Envelope proxy.
              Shown for parameters of type `Array`, or for parameters of type `int` that
