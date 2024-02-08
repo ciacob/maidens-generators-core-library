@@ -1,1 +1,5 @@
 Basic structures and musical knowledge that all generators could benefit of.
+
+This library depends of the folowing SWC from the AIR/Flex SDK:
+- {SDK}/frameworks/libs/mobile/mobilecomponents.swc
+- {SDK}/frameworks/themes/Mobile/mobile.swc
