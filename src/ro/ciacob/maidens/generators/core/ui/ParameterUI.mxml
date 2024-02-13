@@ -8,7 +8,14 @@
          verticalScrollPolicy="off"
          preinitialize="_onPreinitialize (event)"
          verticalGap="0"
-         xmlns:ui="ro.ciacob.maidens.generators.core.ui.*">
+         xmlns:ui="ro.ciacob.maidens.generators.core.ui.*"
+         backgroundColor="#ffffff"
+         backgroundAlpha="0.25"
+         paddingLeft="{SPACE}"
+         paddingRight="{SPACE}"
+         paddingTop="{SPACE}"
+         paddingBottom="{SPACE}"
+         cornerRadius="{SPACE}">
 
     <fx:Declarations>
     </fx:Declarations>
@@ -672,7 +679,7 @@
         <!-- Color indicator -->
         <s:Group>
             <s:Rect height="{SPACE * 1.2}"
-                    width="{SPACE * 1.2}">
+                    width="{SPACE * 1.2}" radiusY="100" radiusX="100">
                 <s:fill>
                     <mx:SolidColor color="{color}"/>
                 </s:fill>
