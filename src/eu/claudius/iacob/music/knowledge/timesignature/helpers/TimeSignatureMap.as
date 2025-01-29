@@ -35,7 +35,7 @@ package eu.claudius.iacob.music.knowledge.timesignature.helpers {
 		 * @see ITimeSignatureMap.every
 		 */
 		public function every(callback:Function):Boolean {
-			return _entries.every (_wrapCallback(callback));
+			return !!_entries.every (_wrapCallback(callback));
 		}
 		
 		/**

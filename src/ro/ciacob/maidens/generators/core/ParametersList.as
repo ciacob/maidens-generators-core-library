@@ -33,7 +33,7 @@ package ro.ciacob.maidens.generators.core {
 		 * @see IParametersList.every
 		 */
 		public function every(callback:Function):Boolean {
-			return _parameters.every (_wrapCallback(callback));
+			return !!_parameters.every (_wrapCallback(callback));
 		}
 		
 		/**
@@ -197,18 +197,18 @@ package ro.ciacob.maidens.generators.core {
 		 */
 		private function _searchFor (fieldName : String, fieldValue : String, singleResult : Boolean = false) : Vector.<IParameter> {
 			var buffer : Array = [];
-			var buferCount : uint = 0;
+			var bufferCount : uint = 0;
 			var i : uint = 0; 
 			var numParameters : uint = _parameters.length;
 			var parameter : IParameter;
 			for (i; i < numParameters; i++) {
 				parameter = _parameters[i];
 				if (parameter[fieldName] == fieldValue) {
-					buffer[buferCount] = parameter;
+					buffer[bufferCount] = parameter;
 					if (singleResult) {
 						break;
 					}
-					buferCount++;
+					bufferCount++;
 				}
 			}
 			return Vector.<IParameter>(buffer);

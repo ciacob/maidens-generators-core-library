@@ -21,653 +21,683 @@
     </fx:Declarations>
 
     <fx:Script>
-		<![CDATA[
-        import eu.claudius.iacob.maidens.Colors;
-        import eu.claudius.iacob.maidens.Sizes;
-        import eu.claudius.iacob.maidens.skins.InfoButtonSkin;
-
-        import mx.events.FlexEvent;
-
-        import ro.ciacob.desktop.operation.Procrastinator;
-        import ro.ciacob.desktop.signals.PTT;
-        import ro.ciacob.maidens.generators.core.constants.CoreOperationKeys;
-        import ro.ciacob.utils.Strings;
-        import ro.ciacob.utils.constants.CommonStrings;
-
-        // Communication constants
-        public static const TWEENING_SETTING_CHANGE:String = 'tweeningSettingChange';
-        public static const ENVELOPE_EDITOR_REQUESTED:String = 'envelopeEditorRequested';
-
-        // UI Constants
-        private static const MIN_WIDTH:Number = 180;
-        private static const MIN_HEIGHT:Number = 50;
-        private static const INFO_BUTTON_SIZE:Number = Sizes.SECONDARY_UI_BUTTON_SIZE;
-        private static const SPACE:Number = 10;
-        private static const MIN_VALUE:int = 1;
-        private static const MAX_VALUE:int = 100;
-        private static const RANGE_TEMPLATE:String = '(%s to %s)';
-        private static const STEPPER_CHANGE_DELAY:int = 300;
-
-        // Functional logic constants
-        private static const SEND:Function = PTT.getPipe().send;
-        private static const TWEENING_STATUS_INHERIT:int = -1;
-        private static const TWEENING_STATUS_ON:int = 1;
-        private static const TWEENING_STATUS_OFF:int = 0;
-
-        private static const ARR:int = CoreOperationKeys.TYPE_ARRAY;
-        private static const INT:int = CoreOperationKeys.TYPE_INT;
-
-        private static const PARAM_UID:String = CoreOperationKeys.PARAM_UID;
-        private static const URL:String = CoreOperationKeys.DOCUMENTATION_URL;
-        private static const TWEENING_STATUS:String = CoreOperationKeys.TWEENING_STATUS;
-        private static const EDITOR_SERVICE:String = CoreOperationKeys.EDITOR_SERVICE_NOTICE;
-        private static const EDITOR_FOCUS:String = CoreOperationKeys.EDITOR_FOCUS_NOTICE;
-        private static const DOCUMENTATION:String = CoreOperationKeys.DOC_REQUESTED_NOTICE;
-
-        // Internally holds the `uid` for the rendered parameter.
-        // @see IParameter.uid
-        private var _parameterUid:String;
-
-        // Internally holds the `label` for the rendered parameter.
-        // @see IParameter.label
-        private var _label:String;
-
-        // Internally holds the `description` for the rendered parameter.
-        // @see IParameter.description
-        private var _description:String;
-
-        // Internally holds the `documentationUrl` for the rendered parameter.
-        // @see IParameter.documentationUrl
-        private var _documentationUrl:String;
-
-        // Internally holds the `color` for the rendered parameter.
-        // @see IParameter.color
-        private var _color:uint;
-
-        // Flag we raise to indicate to `commitProperties()` that the `color`
-        // of the rendered parameter has been changed.
-        private var _colorChanged:Boolean;
-
-        // Internally holds the `type` for the rendered parameter.
-        // @see IParameter.type
-        private var _type:uint;
-
-        // Internally holds the `minValue` for the rendered parameter.
-        // @see IParameter.minValue
-        private var _minValue:Object;
-
-        // Flag we raise to indicate to `commitProperties()` that the `minValue` of
-        // the rendered parameter has been changed.
-        private var _minValueChanged:Boolean;
-
-        // Internally holds the `maxValue` for the rendered parameter.
-        // @see IParameter.maxValue
-        private var _maxValue:Object;
-
-        // Flag we raise to indicate to `commitProperties()` that the `maxValue` of
-        // the rendered parameter has been changed.
-        private var _maxValueChanged:Boolean;
-
-        // Internally holds the `icon` for the rendered parameter.
-        // @see IParameter.icon
-        private var _icon:Class;
-
-        // Internally holds the `isTweenable` flag setting for the rendered parameter.
-        // @see IParameter.isTweenable
-        private var _isTweenable:Boolean;
-
-        // Stores the unaltered argument received by the public, "value" setter.
-        // This is needed because processing "value" depends on "type", and there is
-        // no guarantee that these two setters will run in the correct order. Instead,
-        // we will cache the raw/original value, and process it after both setters have run.
-        private var _rawValue:Object;
-
-        // Flag we raise to indicate that the "type" public setter has been run.
-        // See the notes on `_rawValue`.
-        private var _haveRawValue:Boolean;
-
-        // Flag we raise to indicate to `commitProperties()` that the `_rawValue`
-        // stored needs to be processed. This prevents redundant processing on future
-        // runs of `commitProperties()`.
-        private var _mustProcessValue:Boolean;
-
-        // Flag we raise to indicate that the "value" public setter has been run.
-        // See the notes on `_rawValue`.
-        private var _haveType:Boolean;
-
-        // Flag we raise to indicate to `commitProperties()` that the `type` of
-        // this parameter has been changed
-        private var _typeChanged:Boolean;
-
-        // Dedicated storage for the constant/single numeric value of this parameter,
-        // if applicable. This will be used if the parameter's `type` is TYPE_ARRAY and
-        // `_tweeningEngaged` is `false`, or if the parameter's `type` is TYPE_INT.
-        [Bindable]
-        private var _singleIntegerValue:int;
-
-        // Dedicated storage for the dynamic/multiple numeric value of this parameter,
-        // if applicable. This will be used if the parameter's `type` is TYPE_ARRAY and
-        // `_tweeningEngaged` is `true`.
-        [Bindable]
-        private var _multipleIntegersValue:Array;
-
-        // Copy of the dynamic/multiple numeric value of this parameter (if applicable),
-        // intended to be consumed by the envelope proxy control.
-        [Bindable]
-        private var _envelopeProxyDataProvider:Array;
-
-        // Flag that we raise when tweening is engaged for the currently rendered
-        // parameter. Engaging tweening allows the user to specify an envelope instead
-        // of a static value. That envelope describes how the value is expected to evolve
-        // over time. The time axis is given by the total musical duration the generated
-        // material has to cover.
-        [Bindable]
-        private var _tweeningEngaged:Boolean;
-
-        // Stores the user's explicit option of using or not using tweening for the rendered
-        // parameter. This allows us to keep visible the tweening UI even in cases were
-        // existing envelope points incur no actual tweening (e.g., because they all have
-        // the same value).
-        private var _userTweeningPreference:int = TWEENING_STATUS_INHERIT;
-
-        // Stores the (possibly empty) informational section that is appended to this
-        // rendered parameter's label. The section can contain data such as the current
-        // parameter's numeric value, its range, etc.
-        [Bindable]
-        private var _labelInfo:String;
-
-        // Controls visibility of the UI group containing the slider and envelope proxy.
-        [Bindable]
-        private var _showRangeControls:Boolean;
-
-        // Controls visibility of the Yes/No UI control(aka "ToggleSwitch").
-        [Bindable]
-        private var _showSwitch:Boolean;
-
-        // Controls the low limit of the slider range.
-        [Bindable]
-        private var _sliderMinValue:int;
-
-        // Controls the high limit of the slider range.
-        [Bindable]
-        private var _sliderMaxValue:int;
-
-        // Controls visibility of the UI group containing the stepper.
-        [Bindable]
-        private var _showNumericControls:Boolean;
-
-        // Controls the low limit of the stepper range.
-        [Bindable]
-        private var _stepperMinValue:int;
-
-        // Controls the high limit of the stepper range.
-        [Bindable]
-        private var _stepperMaxValue:int;
-
-        // Runs an "aftermath" function when user has done interacting with the
-        // stepper control (to prevent rapid firing change events and all the trouble
-        // this can cause)
-        private var _stepperProcrastinator:Procrastinator = new Procrastinator(
-                _onStepperDoneChanging, STEPPER_CHANGE_DELAY);
-
-        /**
-         * Public accessor for the `uid` field of the rendered parameter.
-         * @see IParameter.uid
-         */
-        public function set parameterUid(value:String):void {
-            _parameterUid = value;
-        }
-
-        public function get parameterUid():String {
-            return _parameterUid;
-        }
-
-        /**
-         * Public accessor for the `label` field of the rendered parameter.
-         * @see IParameter.label
-         */
-        [Bindable]
-        override public function set label(value:String):void {
-            _label = value;
-        }
-
-        override public function get label():String {
-            return _label;
-        }
-
-        /**
-         * Public accessor for the `description` field of the rendered parameter.
-         * @see IParameter.description
-         */
-        [Bindable]
-        public function set description(value:String):void {
-            _description = value;
-        }
-
-        public function get description():String {
-            return _description;
-        }
-
-        /**
-         * Public accessor for the `documentationUrl` field of the rendered parameter.
-         * @see IParameter.documentationUrl
-         */
-        [Bindable]
-        public function set documentationUrl(value:String):void {
-            _documentationUrl = value;
-        }
-
-        public function get documentationUrl():String {
-            return _documentationUrl;
-        }
-
-        /**
-         * Public accessor for the `color` field of the rendered parameter.
-         * @see IParameter.color
-         */
-        [Bindable]
-        public function set color(value:uint):void {
-            if (_color == 0 || _color != value) {
-                _color = value;
-                _colorChanged = true;
-                invalidateProperties();
+        <![CDATA[
+            import eu.claudius.iacob.maidens.Sizes;
+            
+            import mx.events.FlexEvent;
+            
+            import ro.ciacob.desktop.operation.Procrastinator;
+            import ro.ciacob.desktop.signals.PTT;
+            import ro.ciacob.maidens.generators.core.constants.CoreOperationKeys;
+            import ro.ciacob.utils.Strings;
+            import ro.ciacob.utils.constants.CommonStrings;
+            import flash.events.MouseEvent;
+            import flash.events.MouseEvent;
+            import ro.ciacob.maidens.generators.core.constants.CoreOperationKeys;
+            import ro.ciacob.maidens.generators.core.constants.CoreOperationKeys;
+            import ro.ciacob.maidens.generators.core.constants.CoreOperationKeys;
+            import ro.ciacob.maidens.generators.core.constants.CoreOperationKeys;
+            import eu.claudius.iacob.maidens.skins.InfoButtonSkin;
+            import eu.claudius.iacob.maidens.Colors;
+            
+            // Communication constants
+            public static const TWEENING_SETTING_CHANGE:String = 'tweeningSettingChange';
+            public static const ENVELOPE_EDITOR_REQUESTED:String = 'envelopeEditorRequested';
+            
+            // UI Constants
+            private static const MIN_WIDTH:Number = 180;
+            private static const MIN_HEIGHT:Number = 50;
+            private static const INFO_BUTTON_SIZE:Number = Sizes.SECONDARY_UI_BUTTON_SIZE;
+            private static const SPACE:Number = 10;
+            private static const MIN_VALUE:int = 1;
+            private static const MAX_VALUE:int = 100;
+            private static const RANGE_TEMPLATE:String = '(%s to %s)';
+            private static const STEPPER_CHANGE_DELAY:int = 300;
+            
+            // Functional logic constants
+            private static const SEND:Function = PTT.getPipe().send;
+            private static const SUBSCRIBE:Function = PTT.getPipe().subscribe;
+            private static const TWEENING_STATUS_INHERIT:int = -1;
+            private static const TWEENING_STATUS_ON:int = 1;
+            private static const TWEENING_STATUS_OFF:int = 0;
+            
+            private static const ARR:int = CoreOperationKeys.TYPE_ARRAY;
+            private static const INT:int = CoreOperationKeys.TYPE_INT;
+            
+            private static const PARAM_UID:String = CoreOperationKeys.PARAM_UID;
+            private static const PARAM_NAME:String = CoreOperationKeys.PARAM_NAME;
+            private static const DESCRIPTION:String = CoreOperationKeys.DOCUMENTATION_DESCRIPTION;
+            private static const URL:String = CoreOperationKeys.DOCUMENTATION_URL;
+            private static const TWEENING_STATUS:String = CoreOperationKeys.TWEENING_STATUS;
+            private static const EDITOR_SERVICE:String = CoreOperationKeys.EDITOR_SERVICE_NOTICE;
+            private static const EDITOR_FOCUS:String = CoreOperationKeys.EDITOR_FOCUS_NOTICE;
+            private static const INLINE_DOC_SHOW:String = CoreOperationKeys.INLINE_DOC_REQUESTED_NOTICE;
+            private static const INLINE_DOC_HIDE:String = CoreOperationKeys.INLINE_DOC_DISCARDED_NOTICE;
+            private static const DOCUMENTATION:String = CoreOperationKeys.DOC_REQUESTED_NOTICE;
+            
+            // Internally holds the `uid` for the rendered parameter.
+            // @see IParameter.uid
+            private var _parameterUid:String;
+            
+            // Internally holds the `label` for the rendered parameter.
+            // @see IParameter.label
+            private var _label:String;
+            
+            // Internally holds the `description` for the rendered parameter.
+            // @see IParameter.description
+            private var _description:String;
+            
+            // Internally holds the `documentationUrl` for the rendered parameter.
+            // @see IParameter.documentationUrl
+            private var _documentationUrl:String;
+            
+            // Internally holds the `color` for the rendered parameter.
+            // @see IParameter.color
+            private var _color:uint;
+            
+            // Flag we raise to indicate to `commitProperties()` that the `color`
+            // of the rendered parameter has been changed.
+            private var _colorChanged:Boolean;
+            
+            // Internally holds the `type` for the rendered parameter.
+            // @see IParameter.type
+            private var _type:uint;
+            
+            // Internally holds the `minValue` for the rendered parameter.
+            // @see IParameter.minValue
+            private var _minValue:Object;
+            
+            // Flag we raise to indicate to `commitProperties()` that the `minValue` of
+            // the rendered parameter has been changed.
+            private var _minValueChanged:Boolean;
+            
+            // Internally holds the `maxValue` for the rendered parameter.
+            // @see IParameter.maxValue
+            private var _maxValue:Object;
+            
+            // Flag we raise to indicate to `commitProperties()` that the `maxValue` of
+            // the rendered parameter has been changed.
+            private var _maxValueChanged:Boolean;
+            
+            // Internally holds the `icon` for the rendered parameter.
+            // @see IParameter.icon
+            private var _icon:Class;
+            
+            // Internally holds the `isTweenable` flag setting for the rendered parameter.
+            // @see IParameter.isTweenable
+            private var _isTweenable:Boolean;
+            
+            // Stores the unaltered argument received by the public, "value" setter.
+            // This is needed because processing "value" depends on "type", and there is
+            // no guarantee that these two setters will run in the correct order. Instead,
+            // we will cache the raw/original value, and process it after both setters have run.
+            private var _rawValue:Object;
+            
+            // Flag we raise to indicate that the "type" public setter has been run.
+            // See the notes on `_rawValue`.
+            private var _haveRawValue:Boolean;
+            
+            // Flag we raise to indicate to `commitProperties()` that the `_rawValue`
+            // stored needs to be processed. This prevents redundant processing on future
+            // runs of `commitProperties()`.
+            private var _mustProcessValue:Boolean;
+            
+            // Flag we raise to indicate that the "value" public setter has been run.
+            // See the notes on `_rawValue`.
+            private var _haveType:Boolean;
+            
+            // Flag we raise to indicate to `commitProperties()` that the `type` of
+            // this parameter has been changed
+            private var _typeChanged:Boolean;
+            
+            // Dedicated storage for the constant/single numeric value of this parameter,
+            // if applicable. This will be used if the parameter's `type` is TYPE_ARRAY and
+            // `_tweeningEngaged` is `false`, or if the parameter's `type` is TYPE_INT.
+            [Bindable]
+            private var _singleIntegerValue:int;
+            
+            // Dedicated storage for the dynamic/multiple numeric value of this parameter,
+            // if applicable. This will be used if the parameter's `type` is TYPE_ARRAY and
+            // `_tweeningEngaged` is `true`.
+            [Bindable]
+            private var _multipleIntegersValue:Array;
+            
+            // Copy of the dynamic/multiple numeric value of this parameter (if applicable),
+            // intended to be consumed by the envelope proxy control.
+            [Bindable]
+            private var _envelopeProxyDataProvider:Array;
+            
+            // Flag that we raise when tweening is engaged for the currently rendered
+            // parameter. Engaging tweening allows the user to specify an envelope instead
+            // of a static value. That envelope describes how the value is expected to evolve
+            // over time. The time axis is given by the total musical duration the generated
+            // material has to cover.
+            [Bindable]
+            private var _tweeningEngaged:Boolean;
+            
+            // Stores the user's explicit option of using or not using tweening for the rendered
+            // parameter. This allows us to keep visible the tweening UI even in cases were
+            // existing envelope points incur no actual tweening (e.g., because they all have
+            // the same value).
+            private var _userTweeningPreference:int = TWEENING_STATUS_INHERIT;
+            
+            // Stores the (possibly empty) informational section that is appended to this
+            // rendered parameter's label. The section can contain data such as the current
+            // parameter's numeric value, its range, etc.
+            [Bindable]
+            private var _labelInfo:String;
+            
+            // Controls visibility of the UI group containing the slider and envelope proxy.
+            [Bindable]
+            private var _showRangeControls:Boolean;
+            
+            // Controls visibility of the Yes/No UI control(aka "ToggleSwitch").
+            [Bindable]
+            private var _showSwitch:Boolean;
+            
+            // Controls the low limit of the slider range.
+            [Bindable]
+            private var _sliderMinValue:int;
+            
+            // Controls the high limit of the slider range.
+            [Bindable]
+            private var _sliderMaxValue:int;
+            
+            // Controls visibility of the UI group containing the stepper.
+            [Bindable]
+            private var _showNumericControls:Boolean;
+            
+            // Controls the low limit of the stepper range.
+            [Bindable]
+            private var _stepperMinValue:int;
+            
+            // Controls the high limit of the stepper range.
+            [Bindable]
+            private var _stepperMaxValue:int;
+            
+            // Runs an "aftermath" function when user has done interacting with the
+            // stepper control (to prevent rapid firing change events and all the trouble
+            // this can cause)
+            private var _stepperProcrastinator:Procrastinator = new Procrastinator(
+                    _onStepperDoneChanging, STEPPER_CHANGE_DELAY);
+            
+            /**
+             * Public accessor for the `uid` field of the rendered parameter.
+             * @see IParameter.uid
+             */
+            public function set parameterUid(value:String):void {
+                _parameterUid = value;
             }
-        }
-
-        public function get color():uint {
-            return _color;
-        }
-
-        /**
-         * Public accessor for the `type` field of the rendered parameter.
-         * @see IParameter.type
-         */
-        public function set type(value:uint):void {
-            if (_type != value) {
-                _type = value;
-                _typeChanged = true;
-                _haveType = true;
-                invalidateProperties();
+            
+            public function get parameterUid():String {
+                return _parameterUid;
             }
-        }
-
-        public function get type():uint {
-            return _type;
-        }
-
-        /**
-         * Public accessor for the `minValue` field of the rendered parameter.
-         * @see IParameter.minValue
-         */
-        public function set minValue(value:Object):void {
-            if (_minValue != value) {
-                _minValue = value;
-                _minValueChanged = true;
-                invalidateProperties();
+            
+            /**
+             * Public accessor for the `label` field of the rendered parameter.
+             * @see IParameter.label
+             */
+            [Bindable]
+            override public function set label(value:String):void {
+                _label = value;
             }
-        }
-
-        public function get minValue():Object {
-            return _minValue;
-        }
-
-        /**
-         * Public accessor for the `maxValue` field of the rendered parameter.
-         * @see IParameter.maxValue
-         */
-        public function set maxValue(value:Object):void {
-            if (_maxValue != value) {
-                _maxValue = value;
-                _maxValueChanged = true;
-                invalidateProperties();
+            
+            override public function get label():String {
+                return _label;
             }
-        }
-
-        public function get maxValue():Object {
-            return _maxValue;
-        }
-
-        /**
-         * Public accessor for the `icon` field of the rendered parameter.
-         * @see IParameter.maxValue
-         */
-        [Bindable]
-        override public function set icon(value:Class):void {
-            _icon = value;
-        }
-
-        override public function get icon():Class {
-            return _icon;
-        }
-
-        /**
-         * Public accessor for the `isTweenable` field of the rendered parameter.
-         * @see IParameter.isTweenable
-         */
-        [Bindable]
-        public function set isTweenable(value:Boolean):void {
-            _isTweenable = value;
-            _updateTweenableStatus();
-        }
-
-        public function get isTweenable():Boolean {
-            return _isTweenable;
-        }
-
-        /**
-         * Public accessor for the `value` field of the rendered parameter. This component
-         * accepts as a value either a single integer or an array of integers.
-         * @see IParameter.value
-         */
-        public function set value(val:Object):void {
-            _rawValue = val;
-            _haveRawValue = true;
-            _mustProcessValue = true;
-            _userTweeningPreference = TWEENING_STATUS_INHERIT;
-            invalidateProperties();
-        }
-
-        /**
-         * The actual value returned depends on the rendered parameter's `type` and on the current
-         * value of `_tweeningEngaged`, as such:
-         *
-         * - if the parameter's `type` is TYPE_ARRAY and `_tweeningEngaged` is `true`, an unaltered
-         *   copy of `_multipleIntegersValue` will be returned;
-         *
-         * - if the parameter's `type` is TYPE_ARRAY and `_tweeningEngaged` is `false`, an altered
-         *   copy of `_multipleIntegersValue` will be returned; it will contain only two points, at
-         *   the first and last legal indices respectively, and each point will hold the rounded
-         *     average value of all the points in the original `_multipleIntegersValue`.
-         *
-         * - if the parameter's `type` is TYPE_INT, `_singleIntegerValue` will be returned.
-         *
-         * RETURNS NULL if neither of "value" or "type" have ever been set on this
-         * component, or if `commitProperties()` has never had a chance to process the raw value
-         * stored.
-         */
-        public function get value():Object {
-            if (_rawValue !== null && _type && !_mustProcessValue) {
-                switch (_type) {
-                    case ARR:
-                        if (_tweeningEngaged) {
-                            return _multipleIntegersValue;
-                        }
-                        return PointTools.removeTweening(_multipleIntegersValue);
-
-                    case INT:
-                        return _singleIntegerValue;
+            
+            /**
+             * Public accessor for the `description` field of the rendered parameter.
+             * @see IParameter.description
+             */
+            [Bindable]
+            public function set description(value:String):void {
+                _description = value;
+            }
+            
+            public function get description():String {
+                return _description;
+            }
+            
+            /**
+             * Public accessor for the `documentationUrl` field of the rendered parameter.
+             * @see IParameter.documentationUrl
+             */
+            [Bindable]
+            public function set documentationUrl(value:String):void {
+                _documentationUrl = value;
+            }
+            
+            public function get documentationUrl():String {
+                return _documentationUrl;
+            }
+            
+            /**
+             * Public accessor for the `color` field of the rendered parameter.
+             * @see IParameter.color
+             */
+            [Bindable]
+            public function set color(value:uint):void {
+                if (_color == 0 || _color != value) {
+                    _color = value;
+                    _colorChanged = true;
+                    invalidateProperties();
                 }
             }
-            return null;
-        }
-
-        /**
-         * @see spark.components.Group.commitProperties()
-         */
-        override protected function commitProperties():void {
-            super.commitProperties();
-
-            // Process the `_rawValue` stored
-            if (_haveRawValue && _haveType && _mustProcessValue) {
-                _mustProcessValue = false;
-                switch (_type) {
-
+            
+            public function get color():uint {
+                return _color;
+            }
+            
+            /**
+             * Public accessor for the `type` field of the rendered parameter.
+             * @see IParameter.type
+             */
+            public function set type(value:uint):void {
+                if (_type != value) {
+                    _type = value;
+                    _typeChanged = true;
+                    _haveType = true;
+                    invalidateProperties();
+                }
+            }
+            
+            public function get type():uint {
+                return _type;
+            }
+            
+            /**
+             * Public accessor for the `minValue` field of the rendered parameter.
+             * @see IParameter.minValue
+             */
+            public function set minValue(value:Object):void {
+                if (_minValue != value) {
+                    _minValue = value;
+                    _minValueChanged = true;
+                    invalidateProperties();
+                }
+            }
+            
+            public function get minValue():Object {
+                return _minValue;
+            }
+            
+            /**
+             * Public accessor for the `maxValue` field of the rendered parameter.
+             * @see IParameter.maxValue
+             */
+            public function set maxValue(value:Object):void {
+                if (_maxValue != value) {
+                    _maxValue = value;
+                    _maxValueChanged = true;
+                    invalidateProperties();
+                }
+            }
+            
+            public function get maxValue():Object {
+                return _maxValue;
+            }
+            
+            /**
+             * Public accessor for the `icon` field of the rendered parameter.
+             * @see IParameter.maxValue
+             */
+            [Bindable]
+            override public function set icon(value:Class):void {
+                _icon = value;
+            }
+            
+            override public function get icon():Class {
+                return _icon;
+            }
+            
+            /**
+             * Public accessor for the `isTweenable` field of the rendered parameter.
+             * @see IParameter.isTweenable
+             */
+            [Bindable]
+            public function set isTweenable(value:Boolean):void {
+                _isTweenable = value;
+                _updateTweenableStatus();
+            }
+            
+            public function get isTweenable():Boolean {
+                return _isTweenable;
+            }
+            
+            /**
+             * Public accessor for the `value` field of the rendered parameter. This component
+             * accepts as a value either a single integer or an array of integers.
+             * @see IParameter.value
+             */
+            public function set value(val:Object):void {
+                _rawValue = val;
+                _haveRawValue = true;
+                _mustProcessValue = true;
+                _userTweeningPreference = TWEENING_STATUS_INHERIT;
+                invalidateProperties();
+            }
+            
+            /**
+             * The actual value returned depends on the rendered parameter's `type` and on the current
+             * value of `_tweeningEngaged`, as such:
+             *
+             * - if the parameter's `type` is TYPE_ARRAY and `_tweeningEngaged` is `true`, an unaltered
+             *   copy of `_multipleIntegersValue` will be returned;
+             *
+             * - if the parameter's `type` is TYPE_ARRAY and `_tweeningEngaged` is `false`, an altered
+             *   copy of `_multipleIntegersValue` will be returned; it will contain only two points, at
+             *   the first and last legal indices respectively, and each point will hold the rounded
+             *     average value of all the points in the original `_multipleIntegersValue`.
+             *
+             * - if the parameter's `type` is TYPE_INT, `_singleIntegerValue` will be returned.
+             *
+             * RETURNS NULL if neither of "value" or "type" have ever been set on this
+             * component, or if `commitProperties()` has never had a chance to process the raw value
+             * stored.
+             */
+            public function get value():Object {
+                if (_rawValue !== null && _type && !_mustProcessValue) {
+                    switch (_type) {
+                        case ARR:
+                            if (_tweeningEngaged) {
+                                return _multipleIntegersValue;
+                            }
+                            return PointTools.removeTweening(_multipleIntegersValue);
+            
+                        case INT:
+                            return _singleIntegerValue;
+                    }
+                }
+                return null;
+            }
+            
+            /**
+             * @see spark.components.Group.commitProperties()
+             */
+            override protected function commitProperties():void {
+                super.commitProperties();
+            
+                // Process the `_rawValue` stored
+                if (_haveRawValue && _haveType && _mustProcessValue) {
+                    _mustProcessValue = false;
+                    switch (_type) {
+            
                         // If the parameter's `type` is TYPE_ARRAY, set both `_multipleIntegersValue` and
                         // `_singleIntegerValue`. The later will contain the average of the values in
                         // `_multipleIntegersValue`
-                    case ARR:
-                        _multipleIntegersValue = ({"arr": _rawValue}.arr as Array);
-                        _singleIntegerValue = PointTools.getRoundedAverage(_multipleIntegersValue);
-                        break;
-
-                        // If the parameter's `type` is TYPE_INT, only set `_singleIntegerValue`.
-                    case INT:
-                        _singleIntegerValue = (_rawValue as int);
-                        break;
-                }
-                _updateTweenableStatus();
-                _updateEnvelopeProxy();
-            }
-
-            // Update UI
-            _updateLabelInfo();
-            _updateInputs();
-
-            // Update the UI when `type`, `minValue` or `maxValue` of the rendered parameter
-            // changes
-            if (_typeChanged) {
-                _typeChanged = false;
-                // NOT NEEDED
-            }
-            if (_minValueChanged) {
-                _minValueChanged = false;
-                // NOT NEEDED
-            }
-            if (_maxValueChanged) {
-                _maxValueChanged = false;
-                // NOT NEEDED
-            }
-
-            // Update the envelope proxy's color when the rendered parameter's color changes
-            if (_colorChanged) {
-                _colorChanged = false;
-                _updateEnvelopeProxy();
-            }
-        }
-
-
-        /**
-         * Equivalent of a "constructor" function for MXML classes.
-         * This function runs after the class was initialized, but before any
-         * measurements or children creation activity.
-         */
-        private function _onPreinitialize(event:FlexEvent):void {
-            minWidth = MIN_WIDTH;
-            minHeight = MIN_HEIGHT;
-        }
-
-        /**
-         * Executed when the "Animate" checkbox is clicked and changes state
-         * as a consequence.
-         */
-        private function _onAnimateToggle(event:Event):void {
-            var tweeningStatus:Boolean = toggleAnimationButton.selected;
-            _updateTweenableStatus(tweeningStatus ? TWEENING_STATUS_ON : TWEENING_STATUS_OFF);
-            _updateLabelInfo();
-            var payload:Object = {};
-            payload[PARAM_UID] = _parameterUid;
-            payload[TWEENING_STATUS] = tweeningStatus;
-            SEND(EDITOR_SERVICE, payload);
-        }
-
-        /**
-         * Executed when the "Show envelope in editor" button is clicked.
-         */
-        private function _onEnvelopeClick(event:Event):void {
-            var payload:Object = {};
-            payload[PARAM_UID] = _parameterUid;
-            SEND(EDITOR_FOCUS, payload);
-        }
-
-        /**
-         * Executed when the "learn more..." button is clicked. Causes the system browser to
-         * load related documentation.
-         */
-        private function _onDocButtonClicked(event:MouseEvent):void {
-            var payload:Object = {};
-            payload[PARAM_UID] = _parameterUid;
-            payload[URL] = _documentationUrl;
-            SEND(DOCUMENTATION, payload);
-        }
-
-        /**
-         * Function used to format the tooltip shown while dragging the sliders' knobs.
-         */
-        private function _dataTipFormatter(rawString:String):String {
-            return (type == ARR) ? rawString.concat(CommonStrings.PERCENT) : rawString;
-        }
-
-        /**
-         * Executed when the slider UI controll changes value as a result of user interaction.
-         * Sets both `_singleIntegerValue` and `_multipleIntegersValue` and dispatches an
-         * Event.CHANGE event.
-         */
-        private function _onSliderChanged(...etc):void {
-            if (rangeNumericControls.visible && slider.visible) {
-                _singleIntegerValue = (slider.value as int);
-                if (_multipleIntegersValue) {
-                    PointTools.toBareList(_multipleIntegersValue, _singleIntegerValue);
+                        case ARR:
+                            _multipleIntegersValue = ({"arr": _rawValue}.arr as Array);
+                            _singleIntegerValue = PointTools.getRoundedAverage(_multipleIntegersValue);
+                            break;
+            
+                            // If the parameter's `type` is TYPE_INT, only set `_singleIntegerValue`.
+                        case INT:
+                            _singleIntegerValue = (_rawValue as int);
+                            break;
+                    }
+                    _updateTweenableStatus();
                     _updateEnvelopeProxy();
                 }
+            
+                // Update UI
+                _updateLabelInfo();
+                _updateInputs();
+            
+                // Update the UI when `type`, `minValue` or `maxValue` of the rendered parameter
+                // changes
+                if (_typeChanged) {
+                    _typeChanged = false;
+                    // NOT NEEDED
+                }
+                if (_minValueChanged) {
+                    _minValueChanged = false;
+                    // NOT NEEDED
+                }
+                if (_maxValueChanged) {
+                    _maxValueChanged = false;
+                    // NOT NEEDED
+                }
+            
+                // Update the envelope proxy's color when the rendered parameter's color changes
+                if (_colorChanged) {
+                    _colorChanged = false;
+                    _updateEnvelopeProxy();
+                }
+            }
+            
+            /**
+             * Equivalent of a "constructor" function for MXML classes.
+             * This function runs after the class was initialized, but before any
+             * measurements or children creation activity.
+             */
+            private function _onPreinitialize(event:FlexEvent):void {
+                minWidth = MIN_WIDTH;
+                minHeight = MIN_HEIGHT;
+                SUBSCRIBE(INLINE_DOC_SHOW, _onDocShowRequest);
+            }
+
+            /**
+             * Intercepts requests dispatched for showing the inline documentation.
+             * If they relate to an unrelated parameter ensures the `inlineDocButton`
+             * of the related parameter will be unselected.
+             */
+            private function _onDocShowRequest (info : Object) : void {
+                if (info[PARAM_UID] != _parameterUid) {
+                    if (inlineDocButton.selected) {
+                        inlineDocButton.selected = false;
+                    }
+                }
+            }
+            
+            /**
+             * Executed when the "Animate" checkbox is clicked and changes state
+             * as a consequence.
+             */
+            private function _onAnimateToggle(event:Event):void {
+                var tweeningStatus:Boolean = toggleAnimationButton.selected;
+                _updateTweenableStatus(tweeningStatus ? TWEENING_STATUS_ON : TWEENING_STATUS_OFF);
+                _updateLabelInfo();
+                var payload:Object = {};
+                payload[PARAM_UID] = _parameterUid;
+                payload[TWEENING_STATUS] = tweeningStatus;
+                SEND(EDITOR_SERVICE, payload);
+            }
+            
+            /**
+             * Executed when the "Show envelope in editor" button is clicked.
+             */
+            private function _onEnvelopeClick(event:Event):void {
+                var payload:Object = {};
+                payload[PARAM_UID] = _parameterUid;
+                SEND(EDITOR_FOCUS, payload);
+            }
+            
+            /**
+             * Executed when the "i" (inline documentation) button is clicked. Causes the parent
+             * component to display a short documentation digest for the related parameter.
+             */
+            private function _onDescButtonClicked(event:MouseEvent):void {
+                var payload:Object = {};
+                payload[PARAM_UID] = _parameterUid;
+                if (inlineDocButton.selected) {
+                    payload[PARAM_NAME] = _label;
+                    payload[DESCRIPTION] = _description;
+                    payload[URL] = _documentationUrl;
+                    SEND(INLINE_DOC_SHOW, payload);
+                }
+                else {
+                    SEND(INLINE_DOC_HIDE, payload);
+                }
+            }
+            
+            /**
+             * Function used to format the tooltip shown while dragging the sliders' knobs.
+             */
+            private function _dataTipFormatter(rawString:String):String {
+                return (type == ARR) ? rawString.concat(CommonStrings.PERCENT) : rawString;
+            }
+            
+            /**
+             * Executed when the slider UI control changes value as a result of user interaction.
+             * Sets both `_singleIntegerValue` and `_multipleIntegersValue` and dispatches an
+             * Event.CHANGE event.
+             */
+            private function _onSliderChanged(...etc):void {
+                if (rangeNumericControls.visible && slider.visible) {
+                    _singleIntegerValue = (slider.value as int);
+                    if (_multipleIntegersValue) {
+                        PointTools.toBareList(_multipleIntegersValue, _singleIntegerValue);
+                        _updateEnvelopeProxy();
+                    }
+                    _updateLabelInfo();
+                    dispatchEvent(new Event(Event.CHANGE));
+                }
+            }
+            
+            /**
+             * Executed when the Yes/No UI control changes values as a result of user interaction.
+             * Sets `_singleIntegerValue` and dispatches an Event.CHANGE event.
+             */
+            private function _onYesNoChange():void {
+                _singleIntegerValue = yesNoControl.selected ? 1 : 0;
                 _updateLabelInfo();
                 dispatchEvent(new Event(Event.CHANGE));
             }
-        }
-
-        /**
-         * Executed when the Yes/No UI controll changes values as a result of user interaction.
-         * Sets `_singleIntegerValue` and dispatches an Event.CHANGE event.
-         */
-        private function _onYesNoChange ():void {
-            _singleIntegerValue = yesNoControl.selected? 1 : 0;
-            _updateLabelInfo();
-            dispatchEvent(new Event(Event.CHANGE));
-        }
-
-        /**
-         * Executed when the stepper UI controll changes value as a result of user interaction.
-         */
-        private function _onStepperChanged(...etc):void {
-            if (stepperContainer.visible) {
-                _stepperProcrastinator.procrastinate();
+            
+            /**
+             * Executed when the stepper UI control changes value as a result of user interaction.
+             */
+            private function _onStepperChanged(...etc):void {
+                if (stepperContainer.visible) {
+                    _stepperProcrastinator.procrastinate();
+                }
             }
-        }
-
-        /**
-         * Executed when the user has done interacting with the stepper control (and the
-         * new value has "stabilized").
-         */
-        private function _onStepperDoneChanging():void {
-            _singleIntegerValue = (stepper.value as int);
-            _updateLabelInfo();
-            dispatchEvent(new Event(Event.CHANGE));
-        }
-
-        /**
-         * Sets `_tweeningEngaged` based on `isTweenable` and `value`. Causes the UI
-         * to update accordingly, by showing either a slider (if tweening is NOT engaged)
-         * or an envelope editor button (if tweening IS engaged). Also controls whether the
-         * "Animate toggle" checkbox is selected or not.
-         *
-         * @param newStatus
-         *        Optional. The status to enforce. Defaults to the value of the
-         *        `TWEENING_STATUS_INHERIT` constant, which will infer the current status from
-         *        the rendered parameter's current settings (namely, `isTweenable`, `type` and
-         *        `value`), and will perform no changes. Also accepts the values of these
-         *        constants:
-         *
-         *        - `TWEENING_STATUS_ON`, which will transfer the constant value as the first
-         *          and last tweening points of an "envelope stub" and turn on `_tweeningEngaged`,
-         *          thus causing the tweeining related UI to display; and
-         *
-         *        - `TWEENING_STATUS_OFF`, which will:
-         *          - permanently erase all tweening points from the envelope, except for the first
-         *          and last ones (which will be set to the average of all the points previously
-         *          found on the envelope);
-         *        - turn off `_tweeningEngaged`, thus hiding the tweening related UI;
-         *          - set `_singleIntegerValue` to the average value of the original envelope points; and
-         *          - dispatch an Event.CHANGE event.
-         */
-        private function _updateTweenableStatus(newStatus:int = TWEENING_STATUS_INHERIT):void {
-            var haveTweeningPoints:Boolean = false;
-            if (_type == ARR && _multipleIntegersValue) {
-                haveTweeningPoints = PointTools.pointsIncurTweening(_multipleIntegersValue);
+            
+            /**
+             * Executed when the user has done interacting with the stepper control (and the
+             * new value has "stabilized").
+             */
+            private function _onStepperDoneChanging():void {
+                _singleIntegerValue = (stepper.value as int);
+                _updateLabelInfo();
+                dispatchEvent(new Event(Event.CHANGE));
             }
-            switch (newStatus) {
-                case TWEENING_STATUS_INHERIT:
-                    if (_userTweeningPreference == TWEENING_STATUS_INHERIT) {
-                        _tweeningEngaged = (isTweenable && haveTweeningPoints);
-                    }
-                    break;
-                case TWEENING_STATUS_ON:
-                    _userTweeningPreference = TWEENING_STATUS_ON;
-                    PointTools.toBareList(_multipleIntegersValue, _singleIntegerValue);
-                    _tweeningEngaged = true;
-                    dispatchEvent(new Event(Event.CHANGE));
-                    _updateEnvelopeProxy();
-                    break;
-                case TWEENING_STATUS_OFF:
-                    _userTweeningPreference = TWEENING_STATUS_OFF;
-                    var envelopeAverage:int = PointTools.getRoundedAverage(_multipleIntegersValue);
-                    PointTools.toBareList(_multipleIntegersValue, envelopeAverage);
-                    _singleIntegerValue = envelopeAverage;
-                    _tweeningEngaged = false;
-                    dispatchEvent(new Event(Event.CHANGE));
-                    _updateEnvelopeProxy();
-                    break;
+            
+            /**
+             * Sets `_tweeningEngaged` based on `isTweenable` and `value`. Causes the UI
+             * to update accordingly, by showing either a slider (if tweening is NOT engaged)
+             * or an envelope editor button (if tweening IS engaged). Also controls whether the
+             * "Animate toggle" checkbox is selected or not.
+             *
+             * @param newStatus
+             *        Optional. The status to enforce. Defaults to the value of the
+             *        `TWEENING_STATUS_INHERIT` constant, which will infer the current status from
+             *        the rendered parameter's current settings (namely, `isTweenable`, `type` and
+             *        `value`), and will perform no changes. Also accepts the values of these
+             *        constants:
+             *
+             *        - `TWEENING_STATUS_ON`, which will transfer the constant value as the first
+             *          and last tweening points of an "envelope stub" and turn on `_tweeningEngaged`,
+             *          thus causing the tweeining related UI to display; and
+             *
+             *        - `TWEENING_STATUS_OFF`, which will:
+             *          - permanently erase all tweening points from the envelope, except for the first
+             *          and last ones (which will be set to the average of all the points previously
+             *          found on the envelope);
+             *        - turn off `_tweeningEngaged`, thus hiding the tweening related UI;
+             *          - set `_singleIntegerValue` to the average value of the original envelope points; and
+             *          - dispatch an Event.CHANGE event.
+             */
+            private function _updateTweenableStatus(newStatus:int = TWEENING_STATUS_INHERIT):void {
+                var haveTweeningPoints:Boolean = false;
+                if (_type == ARR && _multipleIntegersValue) {
+                    haveTweeningPoints = PointTools.pointsIncurTweening(_multipleIntegersValue);
+                }
+                switch (newStatus) {
+                    case TWEENING_STATUS_INHERIT:
+                        if (_userTweeningPreference == TWEENING_STATUS_INHERIT) {
+                            _tweeningEngaged = (isTweenable && haveTweeningPoints);
+                        }
+                        break;
+                    case TWEENING_STATUS_ON:
+                        _userTweeningPreference = TWEENING_STATUS_ON;
+                        PointTools.toBareList(_multipleIntegersValue, _singleIntegerValue);
+                        _tweeningEngaged = true;
+                        dispatchEvent(new Event(Event.CHANGE));
+                        _updateEnvelopeProxy();
+                        break;
+                    case TWEENING_STATUS_OFF:
+                        _userTweeningPreference = TWEENING_STATUS_OFF;
+                        var envelopeAverage:int = PointTools.getRoundedAverage(_multipleIntegersValue);
+                        PointTools.toBareList(_multipleIntegersValue, envelopeAverage);
+                        _singleIntegerValue = envelopeAverage;
+                        _tweeningEngaged = false;
+                        dispatchEvent(new Event(Event.CHANGE));
+                        _updateEnvelopeProxy();
+                        break;
+                }
             }
-        }
-
-        /**
-         * Recompiles the informational section that is appended to this rendered parameter's
-         * label causing the UI to update (via binding, as `_labelInfo` is a bindable member).
-         */
-        private function _updateLabelInfo():void {
-
-            var isArray:Boolean = (type == ARR);
-            var isInt:Boolean = (type == INT);
-            var isBoolean : Boolean = (type == INT && minValue == 0 && maxValue == 1);
-            var hasMinValue:Boolean = isInt && (minValue is int);
-            var hasMaxValue:Boolean = isInt && (maxValue is int);
-            var showValue:Boolean = (isBoolean || isInt || (isArray && !_tweeningEngaged));
-            var showPercent:Boolean = (showValue && isArray);
-            var showRange:Boolean = (!isBoolean && hasMinValue && hasMaxValue);
-            var tokens:Array = [];
-            if (showValue) {
-                tokens.push(isBoolean? _singleIntegerValue === 1 : _singleIntegerValue);
+            
+            /**
+             * Recompiles the informational section that is appended to this rendered parameter's
+             * label causing the UI to update (via binding, as `_labelInfo` is a bindable member).
+             */
+            private function _updateLabelInfo():void {
+            
+                var isArray:Boolean = (type == ARR);
+                var isInt:Boolean = (type == INT);
+                var isBoolean:Boolean = (type == INT && minValue == 0 && maxValue == 1);
+                var hasMinValue:Boolean = isInt && (minValue is int);
+                var hasMaxValue:Boolean = isInt && (maxValue is int);
+                var showValue:Boolean = (isBoolean || isInt || (isArray && !_tweeningEngaged));
+                var showPercent:Boolean = (showValue && isArray);
+                var showRange:Boolean = (!isBoolean && hasMinValue && hasMaxValue);
+                var tokens:Array = [];
+                if (showValue) {
+                    tokens.push(isBoolean ? _singleIntegerValue === 1 : _singleIntegerValue);
+                }
+                if (showPercent) {
+                    tokens.push(CommonStrings.PERCENT);
+                }
+                if (showRange) {
+                    tokens.push(CommonStrings.SPACE, Strings.sprintf(RANGE_TEMPLATE, minValue,
+                                maxValue));
+                }
+                _labelInfo = tokens.join(CommonStrings.EMPTY);
             }
-            if (showPercent) {
-                tokens.push(CommonStrings.PERCENT);
+            
+            /**
+             * Updates the UI responsible with collecting and displaying feed-back
+             * for user input.
+             */
+            private function _updateInputs():void {
+                var isArray:Boolean = (type == ARR);
+                var isInt:Boolean = (type == INT);
+                var hasMinValue:Boolean = isInt && (minValue is int);
+                var hasMaxValue:Boolean = isInt && (maxValue is int);
+                _showSwitch = (isInt && minValue == 0 && maxValue == 1);
+                _showRangeControls = (isArray || (isInt && hasMinValue && hasMaxValue && !_showSwitch));
+                _sliderMinValue = (isArray ? MIN_VALUE : minValue as int);
+                _sliderMaxValue = (isArray ? MAX_VALUE : maxValue as int);
+                _showNumericControls = (isInt && (!hasMinValue || !hasMaxValue));
+                _stepperMinValue = (hasMinValue ? minValue as int : int.MIN_VALUE);
+                _stepperMaxValue = (hasMaxValue ? maxValue as int : int.MAX_VALUE);
             }
-            if (showRange) {
-                tokens.push(CommonStrings.SPACE, Strings.sprintf(RANGE_TEMPLATE, minValue,
-                        maxValue));
+            
+            /**
+             * Updates the read only rendition of the rendered parameter's envelope points.
+             * This piece of UI acts as a button with a "live icon", one that reflects the changes
+             * made to the rendered parameter's associated envelope in real time. Clicking this button
+             * focuses the actual envelope inside the envelope editor.
+             */
+            private function _updateEnvelopeProxy():void {
+                if (_tweeningEngaged && _multipleIntegersValue) {
+                    _envelopeProxyDataProvider = _multipleIntegersValue.concat();
+                }
             }
-            _labelInfo = tokens.join(CommonStrings.EMPTY);
-        }
-
-        /**
-         * Updates the UI responsible with collecting and displaying feed-back
-         * for user input.
-         */
-        private function _updateInputs():void {
-            var isArray:Boolean = (type == ARR);
-            var isInt:Boolean = (type == INT);
-            var hasMinValue:Boolean = isInt && (minValue is int);
-            var hasMaxValue:Boolean = isInt && (maxValue is int);
-            _showSwitch = (isInt && minValue == 0 && maxValue == 1);
-            _showRangeControls = (isArray || (isInt && hasMinValue && hasMaxValue && !_showSwitch));
-            _sliderMinValue = (isArray ? MIN_VALUE : minValue as int);
-            _sliderMaxValue = (isArray ? MAX_VALUE : maxValue as int);
-            _showNumericControls = (isInt && (!hasMinValue || !hasMaxValue));
-            _stepperMinValue = (hasMinValue ? minValue as int : int.MIN_VALUE);
-            _stepperMaxValue = (hasMaxValue ? maxValue as int : int.MAX_VALUE);
-        }
-
-        /**
-         * Updates the read only rendition of the rendered parameter's envelope points.
-         * This piece of UI acts as a button with a "live icon", one that reflects the changes
-         * made to the rendered parameter's associated envelope in real time. Clicking this button
-         * focuses the actual envelope inside the envelope editor.
-         */
-        private function _updateEnvelopeProxy():void {
-            if (_tweeningEngaged && _multipleIntegersValue) {
-                _envelopeProxyDataProvider = _multipleIntegersValue.concat();
-            }
-        }
         ]]>
-	</fx:Script>
-
+    </fx:Script>
 
     <!-- First Row: label and help -->
     <mx:HBox width="100%"
@@ -695,43 +725,18 @@
                   width="100%"/>
 
         <!-- Information button -->
-        <s:ToggleButton id="showDescriptionButton"
+        <s:ToggleButton id="inlineDocButton"
                         includeInLayout="{description}"
                         width="{INFO_BUTTON_SIZE}"
                         height="{INFO_BUTTON_SIZE}"
                         useHandCursor="true"
                         buttonMode="true"
                         skinClass="{InfoButtonSkin}"
-                        toolTip="Toggle help"/>
+                        toolTip="Toggle help"
+                        click="_onDescButtonClicked (event)"/>
     </mx:HBox>
 
-    <!-- Second row: inline documentation-->
-    <mx:VBox width="100%"
-             horizontalScrollPolicy="off"
-             verticalScrollPolicy="off"
-             height="{(description &amp;&amp; showDescriptionButton.selected)? NaN : 0}"
-             verticalGap="0" paddingTop="2" paddingBottom="2">
-
-        <!-- Description -->
-        <mx:Text text="{description}" width="100%"
-                 textAlign="left"
-                 paddingTop="0"
-                 paddingLeft="0"
-                 paddingRight="0"
-                 paddingBottom="0"/>
-
-        <!-- "Read more" button -->
-        <mx:LinkButton label="read more...  ¤"
-                       paddingLeft="0"
-                       paddingTop="0"
-                       click="_onDocButtonClicked (event)"
-                       useHandCursor="true"
-                       buttonMode="true"
-                       visible="{documentationUrl != null}"
-                       includeInLayout="{documentationUrl != null}"/>
-    </mx:VBox>
-
-    <!-- Third row: various controls -->
+    <!-- Second row: various controls -->
     <mx:HBox width="100%"
              horizontalScrollPolicy="off"
              verticalScrollPolicy="off"
@@ -749,7 +754,7 @@
                                  accentColor="{Colors.PRIMARY_COLOR}"
                                  chromeColor="{Colors.CHROME_COLOR}"
                                  selected="{_singleIntegerValue == 1}"
-                                 change="_onYesNoChange()" />
+                                 change="_onYesNoChange()"/>
 
         <!-- Slider/Envelope proxy.
              Shown for parameters of type `Array`, or for parameters of type `int` that

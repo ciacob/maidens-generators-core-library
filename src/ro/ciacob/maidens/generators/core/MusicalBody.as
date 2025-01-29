@@ -63,7 +63,7 @@ package ro.ciacob.maidens.generators.core {
 		 * @see Array.every
 		 */
 		public function every (callback : Function) : Boolean {
-			return _units.every (_wrapCallback(callback));
+			return !!_units.every (_wrapCallback(callback));
 		};
 		
 		/**
