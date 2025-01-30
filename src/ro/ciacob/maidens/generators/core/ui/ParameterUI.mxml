@@ -487,16 +487,18 @@
             private function _onPreinitialize(event:FlexEvent):void {
                 minWidth = MIN_WIDTH;
                 minHeight = MIN_HEIGHT;
-                SUBSCRIBE(INLINE_DOC_SHOW, _onDocShowRequest);
+                SUBSCRIBE(INLINE_DOC_SHOW, _onDocReverseRequest);
+                SUBSCRIBE(INLINE_DOC_HIDE, _onDocReverseRequest)
             }
             
             /**
-             * Intercepts requests dispatched for showing the inline documentation.
-             * If they relate to an unrelated parameter ensures the `inlineDocButton`
-             * of the related parameter will be unselected.
+             * Intercepts reverse requests related to the inline documentation UI.
+             * If their payload refers to a foreign parameter, or there is no payload
+             * at all, they cause the `inlineDocButton` of the current parameter to
+             * be toggled off.
              */
-            private function _onDocShowRequest(info:Object):void {
-                if (info[PARAM_UID] != _parameterUid) {
+            private function _onDocReverseRequest(info:Object):void {
+                if (!info || info[PARAM_UID] != _parameterUid) {
                     if (inlineDocButton.selected) {
                         inlineDocButton.selected = false;
                     }
