@@ -83,6 +83,10 @@
             // @see IParameter.label
             private var _label:String;
             
+            // Internally holds the `counter` (volatile number representing the parameter's
+            // order in the current setup) for the rendered parameter.
+            private var _counter:int;
+            
             // Internally holds the `description` for the rendered parameter.
             // @see IParameter.description
             private var _description:String;
@@ -244,6 +248,15 @@
             
             override public function get label():String {
                 return _label;
+            }
+            
+            [Bindable]
+            public function set counter(value:int):void {
+                _counter = value;
+            }
+            
+            public function get counter():int {
+                return _counter;
             }
             
             /**
@@ -476,13 +489,13 @@
                 minHeight = MIN_HEIGHT;
                 SUBSCRIBE(INLINE_DOC_SHOW, _onDocShowRequest);
             }
-
+            
             /**
              * Intercepts requests dispatched for showing the inline documentation.
              * If they relate to an unrelated parameter ensures the `inlineDocButton`
              * of the related parameter will be unselected.
              */
-            private function _onDocShowRequest (info : Object) : void {
+            private function _onDocShowRequest(info:Object):void {
                 if (info[PARAM_UID] != _parameterUid) {
                     if (inlineDocButton.selected) {
                         inlineDocButton.selected = false;
@@ -703,7 +716,7 @@
     <mx:HBox width="100%"
              horizontalScrollPolicy="off"
              verticalScrollPolicy="off"
-             horizontalGap="{SPACE * 0.5}"
+             horizontalGap="0"
              verticalAlign="middle">
 
         <!-- Color indicator -->
@@ -716,11 +729,22 @@
             </s:Rect>
         </s:Group>
 
+        <s:Spacer width="{SPACE * 0.5}" />
+
         <!-- Label.
              For numeric values includes the value and (where applicable) provides hints
              about the value range and type (whether it's a percentage or not) -->
+        <mx:Label id="parameterCounter"
+                  visible="{!!counter}"
+                  includeInLayout="{!!counter}"
+                  text="{counter}."
+                  fontWeight="bold"
+                  paddingRight="0" />
+
         <mx:Label id="parameterName"
-                  text="{label}:"/>
+                  text="{label}:"
+                  paddingLeft="0"/>
+
         <mx:Label text="{_labelInfo}"
                   width="100%"/>
 
